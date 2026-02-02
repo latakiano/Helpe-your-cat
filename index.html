@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Himalayan Cat - The Final Victory</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; touch-action: none; }
+        #ui { position: absolute; top: 10px; width: 100%; text-align: center; color: white; pointer-events: none; z-index: 10; }
+        .bar { width: 70%; height: 12px; background: #333; margin: 8px auto; border-radius: 6px; overflow: hidden; }
+        #fill { width: 0%; height: 100%; background: #00ff00; }
+        #overlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.9); display: flex; flex-direction: column; 
+            justify-content: center; align-items: center; color: white; z-index: 1000; 
+        }
+        button { 
+            padding: 20px 50px; font-size: 25px; cursor: pointer; border-radius: 15px; 
+            border: none; background: #27ae60; color: white; font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div id="lvlName" style="font-size: 20px; font-weight: bold;">المرحلة 1</div>
+    <div class="bar"><div id="fill"></div></div>
+    <div>المسافة: <span id="dist">1000</span>m | النقاط: <span id="score">0</span></div>
+</div>
+
+<div id="overlay">
+    <h1 id="msg">مغامرة الـ 20 مرحلة</h1>
+    <button id="btn" onclick="startStage()">ابدأ الآن 🐾</button>
+</div>
+
+<canvas id="c"></canvas>
+
+<script>
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('c').getContext('2d'); // تصحيح بسيط في تعريف السياق
+</script>
+<script>
+    const cvs = document.getElementById('c');
+    const c = cvs.getContext('2d');
+    const overlay = document.getElementById('overlay');
+    const msg = document.getElementById('msg');
+
+    function resize() { cvs.width = window.innerWidth; cvs.height = window.innerHeight; }
+    window.addEventListener('resize', resize); resize();
+
+    // إعداد الـ 20 مرحلة دفعة واحدة
+    const stages = [
+        { n: "غابة الذئاب", m: "wolf", bg: "#0a0a0a", col: "#FFFF00", s: 5 },
+        { n: "مقبرة الأشباح", m: "ghost", bg: "#1a0033", col: "#00FF00", s: 7 },
+        { n: "جبال النسور", m: "eagle", bg: "#001a33", col: "#FFFFFF", s: 9 },
+        { n: "وادي الأفاعي", m: "snake", bg: "#0d1a0d", col: "#FF8C00", s: 11 },
+        { n: "نهر التماسيح", m: "croc", bg: "#002b2b", col: "#40E0D0", s: 13 },
+        { n: "عرين الأسد", m: "lion", bg: "#2c1e00", col: "#FF4500", s: 15 }
+    ];
+    // تكملة الـ 20 مرحلة تلقائياً
+    for(let i=6; i<20; i++) {
+        stages.push({ n: "تحدي الأساطير " + (i+1), m: stages[i%5].m, bg: stages[i%5].bg, col: "#"+Math.floor(Math.random()*16777215).toString(16), s: 15+(i*0.5) });
+    }
+
+    const I = {
+        cat: 'https://img.icons8.com/color/96/cat--v1.png',
+        wolf: 'https://img.icons8.com/color/150/wolf.png',
+        ghost: 'https://img.icons8.com/color/150/ghost.png',
+        eagle: 'https://img.icons8.com/color/150/eagle.png',
+        snake: 'https://img.icons8.com/color/150/snake.png',
+        croc: 'https://img.icons8.com/color/150/crocodile.png',
+        lion: 'https://img.icons8.com/color/150/lion.png',
+        fish: 'https://img.icons8.com/color/48/fish.png',
+        cabin: 'https://img.icons8.com/color/200/log-cabin.png'
+    };
+    const imgs = {};
+    for(let k in I) { imgs[k] = new Image(); imgs[k].src = I[k]; }
+
+    let cur = 0, score = 0, dist = 1000, active = false, playing = false;
+    let p = { x: 100, y: 0, v: 0 }, m = { x: -150, y: 0 }, obs = [], prizes = [], cabinX = -500;
+
+    window.startStage = function() {
+        overlay.style.display = 'none';
+        const s = stages[cur];
+        document.getElementById('lvlName').innerText = "مرحلة " + (cur+1) + ": " + s.n;
+        dist = 1000; p.y = cvs.height/2; p.v = 0; m.x = -150; m.y = cvs.height/2;
+        obs = []; prizes = []; cabinX = -500;
+        active = true; playing = false;
+    };
+
+    function die() {
+        active = false;
+        msg.innerText = "أمسك بك " + stages[cur].n;
+        document.getElementById('btn').innerText = "حاول مجدداً";
+        overlay.style.display = 'flex';
+    }
+
+    function draw() {
+        const s = stages[cur];
+        c.fillStyle = s.bg;
+        c.fillRect(0, 0, cvs.width, cvs.height);
+
+        if (active && playing) {
+            p.v += 0.45; p.y += p.v;
+            dist -= s.s/10;
+
+            // ذكاء الوحوش
+            if (s.m === "eagle") m.y += (p.y - 100 - m.y) * 0.12;
+            else m.y += (p.y - m.y) * 0.05;
+            m.x = Math.min(p.x - 110, m.x + 0.2);
+
+            if (dist <= 0) {
+                if(cabinX === -500) cabinX = cvs.width;
+                cabinX -= s.s;
+                if(p.x > cabinX + 100) {
+                    active = false; cur++;
+                    msg.innerText = "تم اجتياز المرحلة! 🏡";
+                    document.getElementById('btn').innerText = "دخول المرحلة " + (cur+1);
+                    overlay.style.display = 'flex';
+                }
+            }
+
+            if (dist > 100 && (obs.length === 0 || obs[obs.length-1].x < cvs.width - 350)) {
+                let h = Math.random() * (cvs.height - 300) + 50;
+                obs.push({ x: cvs.width, t: h, g: 250, col: s.col });
+                if(Math.random() > 0.7) prizes.push({ x: cvs.width + 50, y: h + 125 });
+            }
+
+            obs.forEach((o, i) => {
+                o.x -= s.s;
+                if(p.x+35 > o.x && p.x+15 < o.x+60 && (p.y+15 < o.t || p.y+35 > o.t+o.g)) die();
+                if(o.x < -60) obs.splice(i, 1);
+            });
+
+            prizes.forEach((f, i) => {
+                f.x -= s.s;
+                if(Math.hypot(p.x-f.x, p.y-f.y) < 45) { score += 50; prizes.splice(i, 1); }
+            });
+
+            if(p.y > cvs.height || p.y < 0 || p.x < m.x + 60) die();
+
+            document.getElementById('fill').style.width = (1 - (dist/1000))*100 + "%";
+            document.getElementById('dist').innerText = Math.max(0, Math.floor(dist));
+            document.getElementById('score').innerText = score;
+        }
+
+        if(cabinX > -500) c.drawImage(imgs.cabin, cabinX, cvs.height/2-100, 200, 200);
+        c.drawImage(imgs[s.m], m.x, m.y, 110, 110);
+        obs.forEach(o => { c.fillStyle = o.col; c.fillRect(o.x, 0, 60, o.t); c.fillRect(o.x, o.t+o.g, 60, cvs.height); });
+        prizes.forEach(f => c.drawImage(imgs.fish, f.x, f.y, 40, 40));
+        c.drawImage(imgs.cat, p.x, p.y, 50, 50);
+
+        requestAnimationFrame(draw);
+    }
+
+    const jump = (e) => { 
+        if(e.target.id === 'btn') return;
+        if(active) { playing = true; p.v = -8; } 
+    };
+    cvs.addEventListener('mousedown', jump);
+    cvs.addEventListener('touchstart', (e) => { if(e.target.id !== 'btn') { e.preventDefault(); jump(e); } }, {passive: false});
+
+    draw();
+</script>
+</body>
+</html>
